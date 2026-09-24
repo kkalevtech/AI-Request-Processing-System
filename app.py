@@ -13,11 +13,30 @@ next_id = 1
 
 @app.route("/")
 def index():
+    sort = request.args.get("sort")
+    q = request.args.get("q", "").strip()
+
+    result = list(history)
+
+    if sort == "time":
+        result = sorted(result, key=lambda x: x["timestamp"], reverse=True)
+    elif sort == "priority":
+        result = sorted(result, key=lambda x: x["priority"], reverse=True)
+
+    if q:
+        result = [
+            item
+            for item in result
+            if q.lower() in item["user"].lower() or q == str(item["id"])
+        ]
+
     return render_template(
         "index.html",
         pending_queue=pending_queue,
         pending_stack=pending_stack,
-        history=history,
+        history=result,
+        sort=sort,
+        q=q,
     )
 
 

@@ -88,3 +88,55 @@ tr:nth-child(even) {
     color: #888;
     font-style: italic;
 }
+
+.history-section {
+    margin-top: 30px;
+}
+
+.history-controls {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.sort-links a {
+    text-decoration: none;
+    padding: 4px 10px;
+    margin-right: 5px;
+    border: 1px solid #4CAF50;
+    border-radius: 3px;
+    color: #4CAF50;
+}
+
+.sort-links a.active {
+    background: #4CAF50;
+    color: white;
+}
+
+.sort-links a:hover {
+    background: #45a049;
+    color: white;
+}
+
+.search-form {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.search-form input {
+    padding: 5px;
+}
+
+.search-form button {
+    padding: 5px 10px;
+    cursor: pointer;
+}
+
+.search-form a {
+    text-decoration: none;
+    color: #888;
+}

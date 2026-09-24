@@ -82,5 +82,53 @@
             </table>
         </div>
     </section>
+
+    <section class="history-section">
+        <h2>History (Processed Requests)</h2>
+
+        <div class="history-controls">
+            <div class="sort-links">
+                <span>Sort:</span>
+                <a href="/" class="{{ 'active' if not sort else '' }}">Default</a>
+                <a href="/?sort=time{{ '&q=' + q if q else '' }}" class="{{ 'active' if sort == 'time' else '' }}">Time ↓</a>
+                <a href="/?sort=priority{{ '&q=' + q if q else '' }}" class="{{ 'active' if sort == 'priority' else '' }}">Priority ↓</a>
+            </div>
+            <form action="/" method="get" class="search-form">
+                {% if sort %}
+                <input type="hidden" name="sort" value="{{ sort }}">
+                {% endif %}
+                <input type="text" name="q" placeholder="Search by user or ID..." value="{{ q }}">
+                <button type="submit">Search</button>
+                {% if q %}
+                <a href="/{{ '?sort=' + sort if sort else '' }}">Clear</a>
+                {% endif %}
+            </form>
+        </div>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>User</th>
+                    <th>Priority</th>
+                    <th>Timestamp</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in history %}
+                <tr>
+                    <td>{{ item.id }}</td>
+                    <td>{{ item.user }}</td>
+                    <td>{{ item.priority }}</td>
+                    <td>{{ item.timestamp }}</td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="4" class="empty">No processed requests yet</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </section>
 </body>
 </html>
