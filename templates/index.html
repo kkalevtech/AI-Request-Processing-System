@@ -7,203 +7,306 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
-    <h1>AI Request Processing System</h1>
+    <div class="container">
+        <div class="flash-messages" id="flash-messages"></div>
 
-    {% with messages = get_flashed_messages(with_categories=true) %}
-    {% if messages %}
-    <div class="flash-messages" id="flash-messages">
-        {% for category, message in messages %}
-        <div class="flash flash-{{ category }}">
-            <span>{{ message }}</span>
-            <button class="flash-close" onclick="this.parentElement.remove()">&times;</button>
-        </div>
-        {% endfor %}
-    </div>
-    {% endif %}
-    {% endwith %}
+        <header class="header">
+            <h1><span class="dot"></span>AI Request Processing System</h1>
+            <p class="subtitle">Submit, queue, and process AI model requests with priority routing</p>
+        </header>
 
-    <section class="submit-section">
-        <h2>Submit a Request</h2>
-        <form action="/submit" method="post">
-            <label for="user">Username:</label>
-            <input type="text" id="user" name="user" required>
-            <label for="priority">Priority (1–5):</label>
-            <input type="number" id="priority" name="priority" min="1" max="5" value="3" required>
-            <button type="submit">Submit</button>
-        </form>
-    </section>
-
-    <section class="process-section">
-        <form action="/process" method="post">
-            <button type="submit" class="process-btn">Process Next Request</button>
-        </form>
-    </section>
-
-    <section class="pending-section">
-        <div class="column">
-            <h2>Standard Queue (Priority 1–3)</h2>
-            <table>
-                <thead>
-                    <tr>
-                        <th>ID</th>
-                        <th>User</th>
-                        <th>Priority</th>
-                        <th>Timestamp</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for item in pending_queue %}
-                    <tr>
-                        <td>{{ item.id }}</td>
-                        <td>{{ item.user }}</td>
-                        <td>{{ item.priority }}</td>
-                        <td>{{ item.timestamp | format_ts }}</td>
-                    </tr>
-                    {% else %}
-                    <tr>
-                        <td colspan="4" class="empty">No pending standard requests</td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-        <div class="column">
-            <h2>Priority Stack (Priority 4–5)</h2>
-            <table>
-                <thead>
-                    <tr>
-                        <th>ID</th>
-                        <th>User</th>
-                        <th>Priority</th>
-                        <th>Timestamp</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for item in pending_stack %}
-                    <tr>
-                        <td>{{ item.id }}</td>
-                        <td>{{ item.user }}</td>
-                        <td>{{ item.priority }}</td>
-                        <td>{{ item.timestamp | format_ts }}</td>
-                    </tr>
-                    {% else %}
-                    <tr>
-                        <td colspan="4" class="empty">No pending priority requests</td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-    </section>
-
-    <section class="history-section">
-        <div class="history-header">
-            <h2>History (Processed Requests)</h2>
-            {% if history %}
-            <form action="/clear" method="post" onsubmit="return confirm('Clear all history?');">
-                <button type="submit" class="clear-btn">Clear History</button>
+        <section class="submit-card">
+            <form id="submit-form">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="user"><span class="material-symbols-outlined">person</span> Username</label>
+                        <input type="text" id="user" name="user" placeholder="e.g. Alice" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="priority"><span class="material-symbols-outlined">flag</span> Priority (1–5)</label>
+                        <input type="number" id="priority" name="priority" min="1" max="5" value="3" required onkeydown="return event.key !== 'ArrowUp' && event.key !== 'ArrowDown' && event.key !== 'e'">
+                    </div>
+                    <button type="submit" class="btn btn-primary">
+                        <span class="material-symbols-outlined">send</span> Submit Request
+                    </button>
+                </div>
             </form>
-            {% endif %}
-        </div>
+        </section>
 
-        <div class="history-controls">
-            <div class="sort-links">
-                <span>Sort:</span>
-                <a href="/" class="{{ 'active' if not sort else '' }}">Default</a>
-                <span class="sort-group">
-                    <a href="/?sort=time-asc" class="{{ 'active' if sort == 'time-asc' else '' }}">Time ↑</a>
-                    <a href="/?sort=time-desc" class="{{ 'active' if sort == 'time-desc' else '' }}">Time ↓</a>
-                </span>
-                <span class="sort-group">
-                    <a href="/?sort=priority-asc" class="{{ 'active' if sort == 'priority-asc' else '' }}">Priority ↑</a>
-                    <a href="/?sort=priority-desc" class="{{ 'active' if sort == 'priority-desc' else '' }}">Priority ↓</a>
-                </span>
-            </div>
-            <div class="search-form">
-                <input type="text" id="search-input" placeholder="Search by user or ID..." value="{{ q }}">
-                <a href="/{{ '?sort=' + sort if sort else '' }}" id="search-clear" style="display: {{ 'inline' if q else 'none' }}">Clear</a>
-            </div>
-        </div>
-
-        <table>
-            <thead>
-                <tr>
-                    <th>ID</th>
-                    <th>User</th>
-                    <th>Priority</th>
-                    <th>Timestamp</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for item in history %}
-                <tr>
-                    <td>{{ item.id }}</td>
-                    <td>{{ item.user }}</td>
-                    <td>{{ item.priority }}</td>
-                    <td>{{ item.timestamp | format_ts }}</td>
-                </tr>
+        <div class="process-area">
+            <button type="button" class="btn btn-process {{ 'has-pending' if (pending_queue|length + pending_stack|length > 0) else '' }}" id="process-btn">
+                {% if (pending_queue|length + pending_stack|length > 0) %}
+                <span class="material-symbols-outlined">play_arrow</span> Process Next Request
                 {% else %}
-                <tr>
-                    <td colspan="4" class="empty">No processed requests yet</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </section>
+                <span class="material-symbols-outlined">check_circle</span> No Pending Requests
+                {% endif %}
+            </button>
+        </div>
+
+        <div class="main-grid">
+            <div class="card">
+                <div class="card-header">
+                    <h2><span class="material-symbols-outlined icon">format_list_bulleted</span> Standard Queue
+                        <span class="badge" id="queue-count">{{ pending_queue|length }}</span>
+                    </h2>
+                    <span style="font-size:0.7rem;color:var(--text-muted)">Priority 1–3 &middot; FIFO</span>
+                </div>
+                <div class="table-wrap">
+                    <table>
+                        <thead><tr><th>ID</th><th>User</th><th>Priority</th><th>Submitted</th></tr></thead>
+                        <tbody id="queue-tbody">
+                            {% set queue_list = pending_queue | list %}
+                            {% for item in queue_list[:10] %}
+                            <tr>
+                                <td>#{{ item.id }}</td>
+                                <td><span class="live-dot"></span>{{ item.user }}</td>
+                                <td><span class="prio prio-{{ item.priority }}">&bullet; {{ item.priority }}</span></td>
+                                <td>{{ item.timestamp | format_ts }}</td>
+                            </tr>
+                            {% else %}
+                            <tr><td colspan="4" class="empty-cell"><div class="empty-state"><span class="material-symbols-outlined empty-icon">inbox</span><p>Queue is empty</p><span class="empty-sub">Submit a request with priority 1–3</span></div></td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                <div class="pagination" id="queue-pagination"></div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <h2><span class="material-symbols-outlined icon">star</span> Priority Stack
+                        <span class="badge" id="stack-count">{{ pending_stack|length }}</span>
+                    </h2>
+                    <span style="font-size:0.7rem;color:var(--text-muted)">Priority 4–5 &middot; LIFO</span>
+                </div>
+                <div class="table-wrap">
+                    <table>
+                        <thead><tr><th>ID</th><th>User</th><th>Priority</th><th>Submitted</th></tr></thead>
+                        <tbody id="stack-tbody">
+                            {% set stack_list = pending_stack | list %}
+                            {% for item in stack_list[:10] %}
+                            <tr>
+                                <td>#{{ item.id }}</td>
+                                <td><span class="live-dot"></span>{{ item.user }}</td>
+                                <td><span class="prio prio-{{ item.priority }}">&bullet; {{ item.priority }}</span></td>
+                                <td>{{ item.timestamp | format_ts }}</td>
+                            </tr>
+                            {% else %}
+                            <tr><td colspan="4" class="empty-cell"><div class="empty-state"><span class="material-symbols-outlined empty-icon">stack_off</span><p>Stack is empty</p><span class="empty-sub">Submit a request with priority 4–5</span></div></td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                <div class="pagination" id="stack-pagination"></div>
+            </div>
+        </div>
+
+        <section class="history-section">
+            <div class="history-card">
+                <div class="history-header">
+                    <h2><span class="material-symbols-outlined">history</span> History &mdash; Processed Requests</h2>
+                    <button type="button" class="btn btn-danger" id="clear-btn" style="display: {{ 'inline-flex' if history else 'none' }}">
+                        <span class="material-symbols-outlined">delete</span> Clear History
+                    </button>
+                </div>
+
+                <div class="history-controls">
+                    <div class="sort-links" id="sort-links">
+                        <span>Sort:</span>
+                        <a href="#" data-sort="" class="{{ 'active' if not sort else '' }}">Default</a>
+                        <span class="sort-group">
+                            <a href="#" data-sort="time-asc" class="{{ 'active' if sort == 'time-asc' else '' }}">Time ↑</a>
+                            <a href="#" data-sort="time-desc" class="{{ 'active' if sort == 'time-desc' else '' }}">Time ↓</a>
+                        </span>
+                        <span class="sort-group">
+                            <a href="#" data-sort="priority-asc" class="{{ 'active' if sort == 'priority-asc' else '' }}">Pri ↑</a>
+                            <a href="#" data-sort="priority-desc" class="{{ 'active' if sort == 'priority-desc' else '' }}">Pri ↓</a>
+                        </span>
+                    </div>
+                    <div class="search-form">
+                        <input type="text" id="search-input" placeholder="Search user or ID..." value="{{ q }}">
+                        <a href="#" id="search-clear" style="display: {{ 'inline' if q else 'none' }}">Clear</a>
+                    </div>
+                </div>
+
+                <div class="table-wrap">
+                    <table>
+                        <thead><tr><th>ID</th><th>User</th><th>Priority</th><th>Processed</th></tr></thead>
+                        <tbody id="history-tbody">
+                            {% for item in history[:10] %}
+                            <tr>
+                                <td>#{{ item.id }}</td>
+                                <td><span class="material-symbols-outlined" style="font-size:0.85rem;color:var(--success)">check_small</span> {{ item.user }}</td>
+                                <td><span class="prio prio-{{ item.priority }}">&bullet; {{ item.priority }}</span></td>
+                                <td>{{ item.timestamp | format_ts }}</td>
+                            </tr>
+                            {% else %}
+                            <tr><td colspan="4" class="empty-cell"><div class="empty-state"><span class="material-symbols-outlined empty-icon">description</span><p>No history yet</p><span class="empty-sub">Processed requests will appear here</span></div></td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                <div class="pagination" id="history-pagination"></div>
+            </div>
+        </section>
+    </div>
 
     <script>
-        setTimeout(function () {
-            var flashes = document.querySelectorAll(".flash");
-            flashes.forEach(function (f) { f.remove(); });
-        }, 5000);
-
+        var PAGE_SIZE = 5;
         var allHistory = {{ all_history|tojson }};
-        var currentSort = "{{ sort or '' }}";
-        var tableBody = document.querySelector(".history-section tbody");
-        var searchInput = document.getElementById("search-input");
-        var clearLink = document.getElementById("search-clear");
+        var pages = { queue: 1, stack: 1, history: 1 };
 
-        function renderHistory(items) {
-            tableBody.innerHTML = "";
-            if (items.length === 0) {
-                tableBody.innerHTML = '<tr><td colspan="4" class="empty">No processed requests yet</td></tr>';
+        function showFlash(msg, category) {
+            var c = document.getElementById("flash-messages");
+            var d = document.createElement("div");
+            d.className = "flash flash-" + category;
+            d.innerHTML = "<span>" + msg + "</span><button class='flash-close'>&times;</button>";
+            d.querySelector(".flash-close").onclick = function () { d.remove(); };
+            c.appendChild(d);
+            setTimeout(function () {
+                if (d.parentNode) d.style.animation = 'fadeIn 0.3s ease reverse';
+                setTimeout(function () { if (d.parentNode) d.remove(); }, 300);
+            }, 5000);
+        }
+
+        function renderTable(tbody, items, page, opts) {
+            tbody.innerHTML = "";
+            var start = (page - 1) * PAGE_SIZE;
+            var slice = items.slice(start, start + PAGE_SIZE);
+            if (slice.length === 0) {
+                tbody.innerHTML = "<tr><td colspan='4' class='empty-cell'><div class='empty-state'>" +
+                    "<span class='material-symbols-outlined empty-icon'>" + opts.emptyIcon + "</span>" +
+                    "<p>" + opts.emptyTitle + "</p><span class='empty-sub'>" + opts.emptySub + "</span></div></td></tr>";
                 return;
             }
-            items.forEach(function (item) {
-                var ts = formatTimestamp(item.timestamp);
-                tableBody.innerHTML +=
-                    "<tr><td>" + item.id + "</td><td>" + item.user +
-                    "</td><td>" + item.priority + "</td><td>" + ts + "</td></tr>";
+            slice.forEach(function (item) {
+                var pfx = opts.isHistory
+                    ? "<span class='material-symbols-outlined' style='font-size:0.85rem;color:var(--success)'>check_small</span> "
+                    : "<span class='live-dot'></span>";
+                tbody.innerHTML += "<tr><td>#" + item.id + "</td><td>" + pfx + item.user +
+                    "</td><td><span class='prio prio-" + item.priority + "'>&bullet; " + item.priority +
+                    "</span></td><td>" + item.timestamp + "</td></tr>";
             });
         }
 
-        function formatTimestamp(iso) {
-            var d = new Date(iso);
-            var dd = String(d.getDate()).padStart(2, "0");
-            var mm = String(d.getMonth() + 1).padStart(2, "0");
-            var yyyy = d.getFullYear();
-            var hh = String(d.getHours()).padStart(2, "0");
-            var min = String(d.getMinutes()).padStart(2, "0");
-            var ss = String(d.getSeconds()).padStart(2, "0");
-            return dd + "." + mm + "." + yyyy + ", " + hh + ":" + min + ":" + ss;
+        function buildPagination(container, items, pageKey, opts) {
+            var page = pages[pageKey];
+            var total = Math.ceil(items.length / PAGE_SIZE);
+            if (total <= 1) { container.innerHTML = ''; return; }
+
+            var html = '<button class="page-btn" ' + (page <= 1 ? 'disabled' : '') + ' data-page="' + (page - 1) + '"><span class="material-symbols-outlined">chevron_left</span></button>';
+
+            var sp = Math.max(1, page - 2), ep = Math.min(total, page + 2);
+            if (sp > 1) { html += '<button class="page-btn" data-page="1">1</button>'; if (sp > 2) html += '<span class="page-dots">&hellip;</span>'; }
+            for (var i = sp; i <= ep; i++) { html += '<button class="page-btn' + (i === page ? ' active' : '') + '" data-page="' + i + '">' + i + '</button>'; }
+            if (ep < total) { if (ep < total - 1) html += '<span class="page-dots">&hellip;</span>'; html += '<button class="page-btn" data-page="' + total + '">' + total + '</button>'; }
+
+            html += '<button class="page-btn" ' + (page >= total ? 'disabled' : '') + ' data-page="' + (page + 1) + '"><span class="material-symbols-outlined">chevron_right</span></button>';
+            container.innerHTML = html;
+
+            container.querySelectorAll("button[data-page]").forEach(function (btn) {
+                btn.addEventListener("click", function () {
+                    pages[pageKey] = parseInt(this.getAttribute("data-page"));
+                    renderTable(opts.tbody, items, pages[pageKey], opts);
+                    buildPagination(container, items, pageKey, opts);
+                });
+            });
         }
 
-        function filterHistory() {
+        var queueData = [], stackData = [];
+
+        function renderQueue() {
+            var tbody = document.getElementById("queue-tbody"), opts = { isHistory: false, emptyIcon: "inbox", emptyTitle: "Queue is empty", emptySub: "Submit a request with priority 1–3" };
+            renderTable(tbody, queueData, pages.queue, opts);
+            buildPagination(document.getElementById("queue-pagination"), queueData, "queue", Object.assign({ tbody: tbody }, opts));
+        }
+        function renderStack() {
+            var tbody = document.getElementById("stack-tbody"), opts = { isHistory: false, emptyIcon: "stack_off", emptyTitle: "Stack is empty", emptySub: "Submit a request with priority 4–5" };
+            renderTable(tbody, stackData, pages.stack, opts);
+            buildPagination(document.getElementById("stack-pagination"), stackData, "stack", Object.assign({ tbody: tbody }, opts));
+        }
+        function renderHistory() {
+            var tbody = document.getElementById("history-tbody"), opts = { isHistory: true, emptyIcon: "description", emptyTitle: "No history yet", emptySub: "Processed requests will appear here" };
+            renderTable(tbody, allHistory, pages.history, opts);
+            buildPagination(document.getElementById("history-pagination"), allHistory, "history", Object.assign({ tbody: tbody }, opts));
+        }
+
+        function renderAll() { renderQueue(); renderStack(); renderHistory(); }
+
+        function applyState(state) {
+            queueData = state.queue; stackData = state.stack; allHistory = state.history;
+            pages.queue = Math.min(pages.queue, Math.max(1, Math.ceil(state.queue.length / PAGE_SIZE)));
+            pages.stack = Math.min(pages.stack, Math.max(1, Math.ceil(state.stack.length / PAGE_SIZE)));
+            pages.history = Math.min(pages.history, Math.max(1, Math.ceil(state.history.length / PAGE_SIZE)));
+            renderAll();
+            updateProcessBtn(state.has_pending);
+            updateCount("queue-count", state.queue.length, state.queue.length > 0);
+            updateCount("stack-count", state.stack.length, state.stack.length > 0);
+            document.getElementById("clear-btn").style.display = state.history.length ? "inline-flex" : "none";
+        }
+
+        function updateProcessBtn(has) {
+            var b = document.getElementById("process-btn");
+            b.classList.toggle("has-pending", has);
+            b.innerHTML = has
+                ? "<span class='material-symbols-outlined'>play_arrow</span> Process Next Request"
+                : "<span class='material-symbols-outlined'>check_circle</span> No Pending Requests";
+        }
+
+        function updateCount(id, count, has) { var e = document.getElementById(id); e.textContent = count; e.classList.toggle("has-items", has); }
+
+        document.getElementById("submit-form").addEventListener("submit", function (e) {
+            e.preventDefault();
+            var d = new FormData(this);
+            fetch("/submit", { method: "POST", body: d })
+                .then(function (r) { return r.json(); })
+                .then(function (res) { showFlash(res.message, res.category); if (res.ok) applyState(res); this.reset(); }.bind(this));
+        });
+
+        document.getElementById("process-btn").addEventListener("click", function () {
+            fetch("/process", { method: "POST" })
+                .then(function (r) { return r.json(); })
+                .then(function (res) { showFlash(res.message, res.category); if (res.queue !== undefined) applyState(res); });
+        });
+
+        document.getElementById("clear-btn").addEventListener("click", function () {
+            if (!confirm("Clear all history?")) return;
+            fetch("/clear", { method: "POST" }).then(function (r) { return r.json(); }).then(function (res) { showFlash(res.message, res.category); applyState(res); });
+        });
+
+        var searchInput = document.getElementById("search-input"), clearLink = document.getElementById("search-clear");
+        searchInput.addEventListener("input", function () {
             var q = searchInput.value.trim().toLowerCase();
             clearLink.style.display = q ? "inline" : "none";
+            pages.history = 1;
+            if (!q) { renderHistory(); return; }
+            var f = allHistory.filter(function (item) { return item.user.toLowerCase().indexOf(q) !== -1 || String(item.id) === q; });
+            renderTable(document.getElementById("history-tbody"), f, 1, { isHistory: true, emptyIcon: "description", emptyTitle: "No matches", emptySub: "Try a different search term" });
+            buildPagination(document.getElementById("history-pagination"), f, "history", { tbody: document.getElementById("history-tbody"), isHistory: true, emptyIcon: "description", emptyTitle: "No matches", emptySub: "Try a different search term" });
+        });
+        clearLink.addEventListener("click", function (e) { e.preventDefault(); searchInput.value = ""; clearLink.style.display = "none"; pages.history = 1; renderHistory(); });
 
-            if (!q) {
-                renderHistory(allHistory);
-                return;
-            }
-
-            var filtered = allHistory.filter(function (item) {
-                return item.user.toLowerCase().indexOf(q) !== -1 || String(item.id) === q;
+        document.querySelectorAll("#sort-links a").forEach(function (link) {
+            link.addEventListener("click", function (e) {
+                e.preventDefault();
+                var sv = this.getAttribute("data-sort");
+                history.pushState(null, "", sv ? "/?sort=" + sv : "/");
+                fetch("/state?sort=" + (sv || "")).then(function (r) { return r.json(); }).then(function (data) {
+                    allHistory = data.history; pages.history = 1; renderAll();
+                    document.querySelectorAll("#sort-links a").forEach(function (a) { a.classList.toggle("active", a.getAttribute("data-sort") === sv); });
+                    if (!sv) document.querySelector('#sort-links a[data-sort=""]').classList.add("active");
+                });
             });
-            renderHistory(filtered);
-        }
+        });
 
-        searchInput.addEventListener("input", filterHistory);
+        queueData = [{% for item in pending_queue %}{id: {{ item.id }}, user: "{{ item.user }}", priority: {{ item.priority }}, timestamp: "{{ item.timestamp | format_ts }}"}{{ ',' if not loop.last else '' }}{% endfor %}];
+        stackData = [{% for item in pending_stack %}{id: {{ item.id }}, user: "{{ item.user }}", priority: {{ item.priority }}, timestamp: "{{ item.timestamp | format_ts }}"}{{ ',' if not loop.last else '' }}{% endfor %}];
+
+        if (queueData.length > 0) updateCount("queue-count", queueData.length, true);
+        if (stackData.length > 0) updateCount("stack-count", stackData.length, true);
+        if (allHistory.length > 0) document.getElementById("clear-btn").style.display = "inline-flex";
+
+        renderAll();
     </script>
 </body>
 </html>

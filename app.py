@@ -1,7 +1,7 @@
 from collections import deque
 from datetime import datetime, timezone
 
-from flask import Flask, flash, redirect, render_template, request
+from flask import Flask, jsonify, render_template, request
 
 app = Flask(__name__)
 app.secret_key = "replace-with-random-secret"
@@ -10,7 +10,28 @@ app.secret_key = "replace-with-random-secret"
 @app.template_filter("format_ts")
 def format_ts(iso_string):
     dt = datetime.fromisoformat(iso_string)
-    return dt.strftime("%d.%m.%Y, %H:%M:%S")
+    local = dt.replace(tzinfo=timezone.utc).astimezone()
+    return local.strftime("%d.%m.%Y, %H:%M:%S")
+
+
+def _serialize(item):
+    return {
+        "id": item["id"],
+        "user": item["user"],
+        "priority": item["priority"],
+        "timestamp": format_ts(item["timestamp"]),
+        "status": item["status"],
+    }
+
+
+def _state():
+    return {
+        "queue": [_serialize(i) for i in pending_queue],
+        "stack": [_serialize(i) for i in pending_stack],
+        "history": [_serialize(i) for i in history],
+        "has_pending": len(pending_queue) + len(pending_stack) > 0,
+    }
+
 
 pending_queue = deque()
 pending_stack = deque()
@@ -20,6 +41,38 @@ next_id = 1
 
 @app.route("/")
 def index():
+    return render_template(
+        "index.html",
+        pending_queue=pending_queue,
+        pending_stack=pending_stack,
+        history=history,
+        all_history=list(history),
+        sort=request.args.get("sort"),
+        q=request.args.get("q", "").strip(),
+    )
+
+
+@app.route("/state")
+def state():
+    sort = request.args.get("sort")
+    h = list(history)
+    if sort == "time-asc":
+        h = sorted(h, key=lambda x: x["timestamp"])
+    elif sort == "time-desc":
+        h = sorted(h, key=lambda x: x["timestamp"], reverse=True)
+    elif sort == "priority-asc":
+        h = sorted(h, key=lambda x: x["priority"])
+    elif sort == "priority-desc":
+        h = sorted(h, key=lambda x: x["priority"], reverse=True)
+
+    return jsonify({
+        "history": [_serialize(i) for i in h],
+        "has_pending": len(pending_queue) + len(pending_stack) > 0,
+    })
+
+
+@app.route("/_index")
+def _index():
     sort = request.args.get("sort")
     q = request.args.get("q", "").strip()
 
@@ -68,18 +121,18 @@ def submit():
 
     user = request.form.get("user", "").strip()
     if not user:
-        flash("Username is required.", "error")
-        return redirect("/")
+        msg = "Username is required."
+        return jsonify({"ok": False, "message": msg, "category": "error"})
 
     try:
         priority = int(request.form["priority"])
     except (ValueError, TypeError):
-        flash("Priority must be a number between 1 and 5.", "error")
-        return redirect("/")
+        msg = "Priority must be a number between 1 and 5."
+        return jsonify({"ok": False, "message": msg, "category": "error"})
 
     if priority < 1 or priority > 5:
-        flash("Priority must be between 1 and 5.", "error")
-        return redirect("/")
+        msg = "Priority must be between 1 and 5."
+        return jsonify({"ok": False, "message": msg, "category": "error"})
 
     item = {
         "id": next_id,
@@ -95,8 +148,8 @@ def submit():
     else:
         pending_queue.append(item)
 
-    flash(f"Request #{item['id']} from {user} submitted.", "success")
-    return redirect("/")
+    msg = f"Request #{item['id']} from {user} submitted."
+    return jsonify({"ok": True, "message": msg, "category": "success", ** _state()})
 
 
 @app.route("/process", methods=["POST"])
@@ -106,21 +159,21 @@ def process():
     elif pending_queue:
         item = pending_queue.popleft()
     else:
-        flash("No pending requests.", "info")
-        return redirect("/")
+        msg = "No pending requests."
+        return jsonify({"ok": True, "message": msg, "category": "info"})
 
     item["status"] = "processed"
     history.append(item)
 
-    flash(f"Request #{item['id']} from {item['user']} processed.", "success")
-    return redirect("/")
+    msg = f"Request #{item['id']} from {item['user']} processed."
+    return jsonify({"ok": True, "message": msg, "category": "success", ** _state()})
 
 
 @app.route("/clear", methods=["POST"])
 def clear():
     history.clear()
-    flash("History cleared.", "info")
-    return redirect("/")
+    msg = "History cleared."
+    return jsonify({"ok": True, "message": msg, "category": "info", ** _state()})
 
 
 if __name__ == "__main__":
