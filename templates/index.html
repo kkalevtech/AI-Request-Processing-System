@@ -13,7 +13,10 @@
     {% if messages %}
     <div class="flash-messages" id="flash-messages">
         {% for category, message in messages %}
-        <div class="flash flash-{{ category }}">{{ message }}</div>
+        <div class="flash flash-{{ category }}">
+            <span>{{ message }}</span>
+            <button class="flash-close" onclick="this.parentElement.remove()">&times;</button>
+        </div>
         {% endfor %}
     </div>
     {% endif %}
@@ -156,8 +159,8 @@
 
     <script>
         setTimeout(function () {
-            var container = document.getElementById("flash-messages");
-            if (container) container.remove();
+            var flashes = document.querySelectorAll(".flash");
+            flashes.forEach(function (f) { f.remove(); });
         }, 5000);
     </script>
 </body>
