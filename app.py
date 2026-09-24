@@ -40,5 +40,20 @@ def submit():
     return redirect("/")
 
 
+@app.route("/process", methods=["POST"])
+def process():
+    if pending_stack:
+        item = pending_stack.pop()
+    elif pending_queue:
+        item = pending_queue.popleft()
+    else:
+        return redirect("/")
+
+    item["status"] = "processed"
+    history.append(item)
+
+    return redirect("/")
+
+
 if __name__ == "__main__":
     app.run(debug=True)
