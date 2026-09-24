@@ -13,7 +13,12 @@ next_id = 1
 
 @app.route("/")
 def index():
-    return render_template("index.html")
+    return render_template(
+        "index.html",
+        pending_queue=pending_queue,
+        pending_stack=pending_stack,
+        history=history,
+    )
 
 
 @app.route("/submit", methods=["POST"])
