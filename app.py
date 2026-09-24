@@ -1,9 +1,10 @@
 from collections import deque
 from datetime import datetime, timezone
 
-from flask import Flask, redirect, render_template, request
+from flask import Flask, flash, redirect, render_template, request
 
 app = Flask(__name__)
+app.secret_key = "replace-with-random-secret"
 
 pending_queue = deque()
 pending_stack = deque()
@@ -44,8 +45,20 @@ def index():
 def submit():
     global next_id
 
-    user = request.form["user"]
-    priority = int(request.form["priority"])
+    user = request.form.get("user", "").strip()
+    if not user:
+        flash("Username is required.", "error")
+        return redirect("/")
+
+    try:
+        priority = int(request.form["priority"])
+    except (ValueError, TypeError):
+        flash("Priority must be a number between 1 and 5.", "error")
+        return redirect("/")
+
+    if priority < 1 or priority > 5:
+        flash("Priority must be between 1 and 5.", "error")
+        return redirect("/")
 
     item = {
         "id": next_id,
@@ -61,6 +74,7 @@ def submit():
     else:
         pending_queue.append(item)
 
+    flash(f"Request #{item['id']} from {user} submitted.", "success")
     return redirect("/")
 
 
@@ -71,11 +85,20 @@ def process():
     elif pending_queue:
         item = pending_queue.popleft()
     else:
+        flash("No pending requests.", "info")
         return redirect("/")
 
     item["status"] = "processed"
     history.append(item)
 
+    flash(f"Request #{item['id']} from {item['user']} processed.", "success")
+    return redirect("/")
+
+
+@app.route("/clear", methods=["POST"])
+def clear():
+    history.clear()
+    flash("History cleared.", "info")
     return redirect("/")
 
 

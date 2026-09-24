@@ -9,6 +9,16 @@
 <body>
     <h1>AI Request Processing System</h1>
 
+    {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+    <div class="flash-messages">
+        {% for category, message in messages %}
+        <div class="flash flash-{{ category }}">{{ message }}</div>
+        {% endfor %}
+    </div>
+    {% endif %}
+    {% endwith %}
+
     <section class="submit-section">
         <h2>Submit a Request</h2>
         <form action="/submit" method="post">
@@ -84,7 +94,14 @@
     </section>
 
     <section class="history-section">
-        <h2>History (Processed Requests)</h2>
+        <div class="history-header">
+            <h2>History (Processed Requests)</h2>
+            {% if history %}
+            <form action="/clear" method="post" onsubmit="return confirm('Clear all history?');">
+                <button type="submit" class="clear-btn">Clear History</button>
+            </form>
+            {% endif %}
+        </div>
 
         <div class="history-controls">
             <div class="sort-links">
