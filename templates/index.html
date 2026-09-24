@@ -11,7 +11,7 @@
 
     {% with messages = get_flashed_messages(with_categories=true) %}
     {% if messages %}
-    <div class="flash-messages">
+    <div class="flash-messages" id="flash-messages">
         {% for category, message in messages %}
         <div class="flash flash-{{ category }}">{{ message }}</div>
         {% endfor %}
@@ -153,5 +153,12 @@
             </tbody>
         </table>
     </section>
+
+    <script>
+        setTimeout(function () {
+            var container = document.getElementById("flash-messages");
+            if (container) container.remove();
+        }, 5000);
+    </script>
 </body>
 </html>
