@@ -1,6 +1,7 @@
 from collections import deque
+from datetime import datetime, timezone
 
-from flask import Flask, render_template
+from flask import Flask, redirect, render_template, request
 
 app = Flask(__name__)
 
@@ -13,6 +14,30 @@ next_id = 1
 @app.route("/")
 def index():
     return render_template("index.html")
+
+
+@app.route("/submit", methods=["POST"])
+def submit():
+    global next_id
+
+    user = request.form["user"]
+    priority = int(request.form["priority"])
+
+    item = {
+        "id": next_id,
+        "user": user,
+        "priority": priority,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "status": "pending",
+    }
+    next_id += 1
+
+    if priority >= 4:
+        pending_stack.append(item)
+    else:
+        pending_queue.append(item)
+
+    return redirect("/")
 
 
 if __name__ == "__main__":
