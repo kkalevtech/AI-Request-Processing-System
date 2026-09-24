@@ -109,26 +109,20 @@
         <div class="history-controls">
             <div class="sort-links">
                 <span>Sort:</span>
-                <a href="/{{ '?q=' + q if q else '' }}" class="{{ 'active' if not sort else '' }}">Default</a>
+                <a href="/" class="{{ 'active' if not sort else '' }}">Default</a>
                 <span class="sort-group">
-                    <a href="/?sort=time-asc{{ '&q=' + q if q else '' }}" class="{{ 'active' if sort == 'time-asc' else '' }}">Time ↑</a>
-                    <a href="/?sort=time-desc{{ '&q=' + q if q else '' }}" class="{{ 'active' if sort == 'time-desc' else '' }}">Time ↓</a>
+                    <a href="/?sort=time-asc" class="{{ 'active' if sort == 'time-asc' else '' }}">Time ↑</a>
+                    <a href="/?sort=time-desc" class="{{ 'active' if sort == 'time-desc' else '' }}">Time ↓</a>
                 </span>
                 <span class="sort-group">
-                    <a href="/?sort=priority-asc{{ '&q=' + q if q else '' }}" class="{{ 'active' if sort == 'priority-asc' else '' }}">Priority ↑</a>
-                    <a href="/?sort=priority-desc{{ '&q=' + q if q else '' }}" class="{{ 'active' if sort == 'priority-desc' else '' }}">Priority ↓</a>
+                    <a href="/?sort=priority-asc" class="{{ 'active' if sort == 'priority-asc' else '' }}">Priority ↑</a>
+                    <a href="/?sort=priority-desc" class="{{ 'active' if sort == 'priority-desc' else '' }}">Priority ↓</a>
                 </span>
             </div>
-            <form action="/" method="get" class="search-form">
-                {% if sort %}
-                <input type="hidden" name="sort" value="{{ sort }}">
-                {% endif %}
-                <input type="text" name="q" placeholder="Search by user or ID..." value="{{ q }}">
-                <button type="submit">Search</button>
-                {% if q %}
-                <a href="/{{ '?sort=' + sort if sort else '' }}">Clear</a>
-                {% endif %}
-            </form>
+            <div class="search-form">
+                <input type="text" id="search-input" placeholder="Search by user or ID..." value="{{ q }}">
+                <a href="/{{ '?sort=' + sort if sort else '' }}" id="search-clear" style="display: {{ 'inline' if q else 'none' }}">Clear</a>
+            </div>
         </div>
 
         <table>
@@ -162,6 +156,54 @@
             var flashes = document.querySelectorAll(".flash");
             flashes.forEach(function (f) { f.remove(); });
         }, 5000);
+
+        var allHistory = {{ all_history|tojson }};
+        var currentSort = "{{ sort or '' }}";
+        var tableBody = document.querySelector(".history-section tbody");
+        var searchInput = document.getElementById("search-input");
+        var clearLink = document.getElementById("search-clear");
+
+        function renderHistory(items) {
+            tableBody.innerHTML = "";
+            if (items.length === 0) {
+                tableBody.innerHTML = '<tr><td colspan="4" class="empty">No processed requests yet</td></tr>';
+                return;
+            }
+            items.forEach(function (item) {
+                var ts = formatTimestamp(item.timestamp);
+                tableBody.innerHTML +=
+                    "<tr><td>" + item.id + "</td><td>" + item.user +
+                    "</td><td>" + item.priority + "</td><td>" + ts + "</td></tr>";
+            });
+        }
+
+        function formatTimestamp(iso) {
+            var d = new Date(iso);
+            var dd = String(d.getDate()).padStart(2, "0");
+            var mm = String(d.getMonth() + 1).padStart(2, "0");
+            var yyyy = d.getFullYear();
+            var hh = String(d.getHours()).padStart(2, "0");
+            var min = String(d.getMinutes()).padStart(2, "0");
+            var ss = String(d.getSeconds()).padStart(2, "0");
+            return dd + "." + mm + "." + yyyy + ", " + hh + ":" + min + ":" + ss;
+        }
+
+        function filterHistory() {
+            var q = searchInput.value.trim().toLowerCase();
+            clearLink.style.display = q ? "inline" : "none";
+
+            if (!q) {
+                renderHistory(allHistory);
+                return;
+            }
+
+            var filtered = allHistory.filter(function (item) {
+                return item.user.toLowerCase().indexOf(q) !== -1 || String(item.id) === q;
+            });
+            renderHistory(filtered);
+        }
+
+        searchInput.addEventListener("input", filterHistory);
     </script>
 </body>
 </html>

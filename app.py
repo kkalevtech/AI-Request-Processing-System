@@ -41,11 +41,22 @@ def index():
             if q.lower() in item["user"].lower() or q == str(item["id"])
         ]
 
+    all_sorted = list(history)
+    if sort == "time-asc":
+        all_sorted = sorted(all_sorted, key=lambda x: x["timestamp"])
+    elif sort == "time-desc":
+        all_sorted = sorted(all_sorted, key=lambda x: x["timestamp"], reverse=True)
+    elif sort == "priority-asc":
+        all_sorted = sorted(all_sorted, key=lambda x: x["priority"])
+    elif sort == "priority-desc":
+        all_sorted = sorted(all_sorted, key=lambda x: x["priority"], reverse=True)
+
     return render_template(
         "index.html",
         pending_queue=pending_queue,
         pending_stack=pending_stack,
         history=result,
+        all_history=all_sorted,
         sort=sort,
         q=q,
     )
