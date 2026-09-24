@@ -54,7 +54,7 @@
                         <td>{{ item.id }}</td>
                         <td>{{ item.user }}</td>
                         <td>{{ item.priority }}</td>
-                        <td>{{ item.timestamp }}</td>
+                        <td>{{ item.timestamp | format_ts }}</td>
                     </tr>
                     {% else %}
                     <tr>
@@ -81,7 +81,7 @@
                         <td>{{ item.id }}</td>
                         <td>{{ item.user }}</td>
                         <td>{{ item.priority }}</td>
-                        <td>{{ item.timestamp }}</td>
+                        <td>{{ item.timestamp | format_ts }}</td>
                     </tr>
                     {% else %}
                     <tr>
@@ -106,9 +106,15 @@
         <div class="history-controls">
             <div class="sort-links">
                 <span>Sort:</span>
-                <a href="/" class="{{ 'active' if not sort else '' }}">Default</a>
-                <a href="/?sort=time{{ '&q=' + q if q else '' }}" class="{{ 'active' if sort == 'time' else '' }}">Time ↓</a>
-                <a href="/?sort=priority{{ '&q=' + q if q else '' }}" class="{{ 'active' if sort == 'priority' else '' }}">Priority ↓</a>
+                <a href="/{{ '?q=' + q if q else '' }}" class="{{ 'active' if not sort else '' }}">Default</a>
+                <span class="sort-group">
+                    <a href="/?sort=time-asc{{ '&q=' + q if q else '' }}" class="{{ 'active' if sort == 'time-asc' else '' }}">Time ↑</a>
+                    <a href="/?sort=time-desc{{ '&q=' + q if q else '' }}" class="{{ 'active' if sort == 'time-desc' else '' }}">Time ↓</a>
+                </span>
+                <span class="sort-group">
+                    <a href="/?sort=priority-asc{{ '&q=' + q if q else '' }}" class="{{ 'active' if sort == 'priority-asc' else '' }}">Priority ↑</a>
+                    <a href="/?sort=priority-desc{{ '&q=' + q if q else '' }}" class="{{ 'active' if sort == 'priority-desc' else '' }}">Priority ↓</a>
+                </span>
             </div>
             <form action="/" method="get" class="search-form">
                 {% if sort %}
@@ -137,7 +143,7 @@
                     <td>{{ item.id }}</td>
                     <td>{{ item.user }}</td>
                     <td>{{ item.priority }}</td>
-                    <td>{{ item.timestamp }}</td>
+                    <td>{{ item.timestamp | format_ts }}</td>
                 </tr>
                 {% else %}
                 <tr>

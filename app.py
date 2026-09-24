@@ -6,6 +6,12 @@ from flask import Flask, flash, redirect, render_template, request
 app = Flask(__name__)
 app.secret_key = "replace-with-random-secret"
 
+
+@app.template_filter("format_ts")
+def format_ts(iso_string):
+    dt = datetime.fromisoformat(iso_string)
+    return dt.strftime("%d.%m.%Y, %H:%M:%S")
+
 pending_queue = deque()
 pending_stack = deque()
 history = []
@@ -19,9 +25,13 @@ def index():
 
     result = list(history)
 
-    if sort == "time":
+    if sort == "time-asc":
+        result = sorted(result, key=lambda x: x["timestamp"])
+    elif sort == "time-desc":
         result = sorted(result, key=lambda x: x["timestamp"], reverse=True)
-    elif sort == "priority":
+    elif sort == "priority-asc":
+        result = sorted(result, key=lambda x: x["priority"])
+    elif sort == "priority-desc":
         result = sorted(result, key=lambda x: x["priority"], reverse=True)
 
     if q:
