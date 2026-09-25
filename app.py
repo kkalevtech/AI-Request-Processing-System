@@ -1,4 +1,5 @@
 from collections import deque
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
 from flask import Flask, jsonify, render_template, request
@@ -14,39 +15,132 @@ def format_ts(iso_string):
     return local.strftime("%d.%m.%Y, %H:%M:%S")
 
 
-def _serialize(item):
-    return {
-        "id": item["id"],
-        "user": item["user"],
-        "priority": item["priority"],
-        "timestamp": format_ts(item["timestamp"]),
-        "status": item["status"],
-    }
+@dataclass
+class Request:
+    id: int
+    user: str
+    priority: int
+    timestamp: str = ""
+    status: str = "pending"
+
+    def __post_init__(self):
+        if not self.timestamp:
+            self.timestamp = datetime.now(timezone.utc).isoformat()
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "user": self.user,
+            "priority": self.priority,
+            "timestamp": self.timestamp,
+            "status": self.status,
+        }
+
+    def serialize(self):
+        return {
+            "id": self.id,
+            "user": self.user,
+            "priority": self.priority,
+            "timestamp": format_ts(self.timestamp),
+            "status": self.status,
+        }
 
 
-def _state():
-    return {
-        "queue": [_serialize(i) for i in pending_queue],
-        "stack": [_serialize(i) for i in pending_stack],
-        "history": [_serialize(i) for i in history],
-        "has_pending": len(pending_queue) + len(pending_stack) > 0,
-    }
+class RequestManager:
+    def __init__(self):
+        self._queue = deque()
+        self._stack = deque()
+        self._history = []
+        self._next_id = 1
+
+    @property
+    def queue(self):
+        return self._queue
+
+    @property
+    def stack(self):
+        return self._stack
+
+    @property
+    def history(self):
+        return self._history
+
+    def submit(self, user, priority):
+        req = Request(id=self._next_id, user=user, priority=priority)
+        self._next_id += 1
+
+        if priority >= 4:
+            self._stack.append(req)
+        else:
+            self._queue.append(req)
+
+        return req
+
+    def process(self):
+        if self._stack:
+            req = self._stack.pop()
+        elif self._queue:
+            req = self._queue.popleft()
+        else:
+            return None
+
+        req.status = "processed"
+        self._history.append(req)
+        return req
+
+    def clear_history(self):
+        self._history.clear()
+
+    def get_sorted_history(self, sort_key=None):
+        h = list(self._history)
+        if sort_key == "time-asc":
+            h.sort(key=lambda r: r.timestamp)
+        elif sort_key == "time-desc":
+            h.sort(key=lambda r: r.timestamp, reverse=True)
+        elif sort_key == "priority-asc":
+            h.sort(key=lambda r: r.priority)
+        elif sort_key == "priority-desc":
+            h.sort(key=lambda r: r.priority, reverse=True)
+        return h
+
+    def get_filtered_history(self, term):
+        term = term.lower()
+        return [r for r in self._history if term in r.user.lower() or term == str(r.id)]
+
+    def has_pending(self):
+        return len(self._queue) + len(self._stack) > 0
+
+    def to_state(self):
+        return {
+            "queue": [r.serialize() for r in self._queue],
+            "stack": [r.serialize() for r in self._stack],
+            "history": [r.serialize() for r in self._history],
+            "has_pending": self.has_pending(),
+        }
+
+    def all_history_serialized(self):
+        return [r.serialize() for r in self._history]
+
+    def all_queue_serialized(self):
+        return [r.serialize() for r in self._queue]
+
+    def all_stack_serialized(self):
+        return [r.serialize() for r in self._stack]
 
 
-pending_queue = deque()
-pending_stack = deque()
-history = []
-next_id = 1
+manager = RequestManager()
 
 
 @app.route("/")
 def index():
     return render_template(
         "index.html",
-        pending_queue=pending_queue,
-        pending_stack=pending_stack,
-        history=history,
-        all_history=list(history),
+        pending_queue=manager.queue,
+        pending_stack=manager.stack,
+        history=manager.history,
+        all_history=manager.all_history_serialized(),
+        all_queue=manager.all_queue_serialized(),
+        all_stack=manager.all_stack_serialized(),
         sort=request.args.get("sort"),
         q=request.args.get("q", "").strip(),
     )
@@ -55,125 +149,46 @@ def index():
 @app.route("/state")
 def state():
     sort = request.args.get("sort")
-    h = list(history)
-    if sort == "time-asc":
-        h = sorted(h, key=lambda x: x["timestamp"])
-    elif sort == "time-desc":
-        h = sorted(h, key=lambda x: x["timestamp"], reverse=True)
-    elif sort == "priority-asc":
-        h = sorted(h, key=lambda x: x["priority"])
-    elif sort == "priority-desc":
-        h = sorted(h, key=lambda x: x["priority"], reverse=True)
-
+    h = manager.get_sorted_history(sort)
     return jsonify({
-        "history": [_serialize(i) for i in h],
-        "has_pending": len(pending_queue) + len(pending_stack) > 0,
+        "history": [r.serialize() for r in h],
+        "has_pending": manager.has_pending(),
     })
-
-
-@app.route("/_index")
-def _index():
-    sort = request.args.get("sort")
-    q = request.args.get("q", "").strip()
-
-    result = list(history)
-
-    if sort == "time-asc":
-        result = sorted(result, key=lambda x: x["timestamp"])
-    elif sort == "time-desc":
-        result = sorted(result, key=lambda x: x["timestamp"], reverse=True)
-    elif sort == "priority-asc":
-        result = sorted(result, key=lambda x: x["priority"])
-    elif sort == "priority-desc":
-        result = sorted(result, key=lambda x: x["priority"], reverse=True)
-
-    if q:
-        result = [
-            item
-            for item in result
-            if q.lower() in item["user"].lower() or q == str(item["id"])
-        ]
-
-    all_sorted = list(history)
-    if sort == "time-asc":
-        all_sorted = sorted(all_sorted, key=lambda x: x["timestamp"])
-    elif sort == "time-desc":
-        all_sorted = sorted(all_sorted, key=lambda x: x["timestamp"], reverse=True)
-    elif sort == "priority-asc":
-        all_sorted = sorted(all_sorted, key=lambda x: x["priority"])
-    elif sort == "priority-desc":
-        all_sorted = sorted(all_sorted, key=lambda x: x["priority"], reverse=True)
-
-    return render_template(
-        "index.html",
-        pending_queue=pending_queue,
-        pending_stack=pending_stack,
-        history=result,
-        all_history=all_sorted,
-        sort=sort,
-        q=q,
-    )
 
 
 @app.route("/submit", methods=["POST"])
 def submit():
-    global next_id
-
     user = request.form.get("user", "").strip()
     if not user:
-        msg = "Username is required."
-        return jsonify({"ok": False, "message": msg, "category": "error"})
+        return jsonify({"ok": False, "message": "Username is required.", "category": "error"})
 
     try:
         priority = int(request.form["priority"])
     except (ValueError, TypeError):
-        msg = "Priority must be a number between 1 and 5."
-        return jsonify({"ok": False, "message": msg, "category": "error"})
+        return jsonify({"ok": False, "message": "Priority must be a number between 1 and 5.", "category": "error"})
 
     if priority < 1 or priority > 5:
-        msg = "Priority must be between 1 and 5."
-        return jsonify({"ok": False, "message": msg, "category": "error"})
+        return jsonify({"ok": False, "message": "Priority must be between 1 and 5.", "category": "error"})
 
-    item = {
-        "id": next_id,
-        "user": user,
-        "priority": priority,
-        "timestamp": datetime.now(timezone.utc).isoformat(),
-        "status": "pending",
-    }
-    next_id += 1
-
-    if priority >= 4:
-        pending_stack.append(item)
-    else:
-        pending_queue.append(item)
-
-    msg = f"Request #{item['id']} from {user} submitted."
-    return jsonify({"ok": True, "message": msg, "category": "success", ** _state()})
+    req = manager.submit(user, priority)
+    msg = f"Request #{req.id} from {user} submitted."
+    return jsonify({"ok": True, "message": msg, "category": "success", **manager.to_state()})
 
 
 @app.route("/process", methods=["POST"])
 def process():
-    if pending_stack:
-        item = pending_stack.pop()
-    elif pending_queue:
-        item = pending_queue.popleft()
-    else:
-        msg = "No pending requests."
-        return jsonify({"ok": True, "message": msg, "category": "info"})
+    req = manager.process()
+    if req is None:
+        return jsonify({"ok": True, "message": "No pending requests.", "category": "info"})
 
-    item["status"] = "processed"
-    history.append(item)
-
-    msg = f"Request #{item['id']} from {item['user']} processed."
-    return jsonify({"ok": True, "message": msg, "category": "success", ** _state()})
+    msg = f"Request #{req.id} from {req.user} processed."
+    return jsonify({"ok": True, "message": msg, "category": "success", **manager.to_state()})
 
 
 @app.route("/clear", methods=["POST"])
 def clear():
-    history.clear()
-    msg = "History cleared."
-    return jsonify({"ok": True, "message": msg, "category": "info", ** _state()})
+    manager.clear_history()
+    return jsonify({"ok": True, "message": "History cleared.", "category": "info", **manager.to_state()})
 
 
 if __name__ == "__main__":
