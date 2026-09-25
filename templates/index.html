@@ -292,7 +292,7 @@
                 var sv = this.getAttribute("data-sort");
                 history.pushState(null, "", sv ? "/?sort=" + sv : "/");
                 fetch("/state?sort=" + (sv || "")).then(function (r) { return r.json(); }).then(function (data) {
-                    allHistory = data.history; pages.history = 1; renderAll();
+                    allHistory = data.history; pages.history = 1; renderHistory();
                     document.querySelectorAll("#sort-links a").forEach(function (a) { a.classList.toggle("active", a.getAttribute("data-sort") === sv); });
                     if (!sv) document.querySelector('#sort-links a[data-sort=""]').classList.add("active");
                 });
