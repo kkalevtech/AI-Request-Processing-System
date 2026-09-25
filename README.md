@@ -16,6 +16,12 @@ A Flask web app that simulates submitting and processing requests to an AI model
 ## Setup
 
 ```bash
+# Create and activate a virtual environment
+python -m venv venv
+venv\Scripts\activate     # Windows
+# source venv/bin/activate   # macOS/Linux
+
+# Install dependencies and run
 pip install -r requirements.txt
 python app.py
 ```
